@@ -61,6 +61,25 @@ async def get_signal(symbol: str, timeframe: str = "15m"):
     signal = await signal_service.generate_signal(symbol.replace("-", "/"), timeframe)
     return signal
 
+@app.get("/api/signals/multi/{symbols}")
+async def get_multi_signals(symbols: str, timeframe: str = "15m"):
+    """Get trading signals for multiple symbols (comma-separated)"""
+    symbol_list = [s.strip().replace("-", "/") for s in symbols.split(",")]
+    signals = []
+    
+    for symbol in symbol_list:
+        try:
+            signal = await signal_service.generate_signal(symbol, timeframe)
+            signals.append(signal.model_dump())
+        except Exception as e:
+            signals.append({
+                "symbol": symbol,
+                "error": str(e),
+                "timeframe": timeframe
+            })
+    
+    return {"signals": signals, "count": len(signals)}
+
 @app.get("/api/ohlcv/{symbol}")
 async def get_ohlcv(symbol: str, timeframe: str = "15m", limit: int = 100):
     """Get OHLCV data for charting"""
@@ -86,7 +105,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 
                 await websocket.send_json({
                     "type": "signal_update",
-                    "data": signal.dict(),
+                    "data": signal.model_dump(),
                     "timestamp": datetime.now().isoformat()
                 })
                 
