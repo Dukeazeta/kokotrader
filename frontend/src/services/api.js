@@ -1,7 +1,8 @@
 import axios from 'axios'
 
-const API_BASE_URL = 'http://localhost:8000'
-const WS_URL = 'ws://localhost:8000/ws'
+// Use environment variable or fallback to localhost for development
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:8000/ws'
 
 // Create axios instance with default config
 const api = axios.create({

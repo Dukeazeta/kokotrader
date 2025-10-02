@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from typing import List
 import asyncio
 import json
+import os
 from datetime import datetime
 
 from services.price_service import PriceService
@@ -12,9 +13,24 @@ from models.signal import SignalResponse
 app = FastAPI(title="Crypto Futures Signals Bot")
 
 # CORS middleware for React frontend
+
+# Allow both localhost and production URLs
+allowed_origins = [
+    "http://localhost:3000",
+    "http://localhost:5173",
+]
+
+# Add production frontend URL if set
+frontend_url = os.getenv("FRONTEND_URL")
+if frontend_url:
+    allowed_origins.append(frontend_url)
+    # Also allow https version
+    if frontend_url.startswith("http://"):
+        allowed_origins.append(frontend_url.replace("http://", "https://"))
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:5173"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -123,5 +139,7 @@ async def websocket_endpoint(websocket: WebSocket):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    # Use PORT environment variable for production, default to 8000 for local dev
+    port = int(os.getenv("PORT", 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port)
 
