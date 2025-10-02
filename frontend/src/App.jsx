@@ -5,6 +5,8 @@ import PriceChart from './components/PriceChart'
 import IndicatorsPanel from './components/IndicatorsPanel'
 import SymbolSelector from './components/SymbolSelector'
 import ConnectionStatus from './components/ConnectionStatus'
+import MTFAnalysis from './components/MTFAnalysis'
+import Settings from './components/Settings'
 import { fetchSignal, fetchOHLCV, connectWebSocket } from './services/api'
 import './App.css'
 
@@ -16,13 +18,15 @@ function App() {
   const [loading, setLoading] = useState(true)
   const [lastUpdate, setLastUpdate] = useState(null)
   const [wsConnected, setWsConnected] = useState(false)
+  const [userSettings, setUserSettings] = useState(null)
 
   // Fetch signal and chart data (memoized to prevent recreating function)
   const loadData = useCallback(async () => {
     setLoading(true)
     try {
+      const strategy = userSettings?.strategy || 'TECHNICAL'
       const [signalData, chartData] = await Promise.all([
-        fetchSignal(symbol, timeframe),
+        fetchSignal(symbol, timeframe, strategy),
         fetchOHLCV(symbol, timeframe, 100)
       ])
       
@@ -34,7 +38,7 @@ function App() {
     } finally {
       setLoading(false)
     }
-  }, [symbol, timeframe])
+  }, [symbol, timeframe, userSettings])
 
   // Initial load
   useEffect(() => {
@@ -60,7 +64,8 @@ function App() {
       // onStatusChange callback
       (connected) => {
         setWsConnected(connected)
-      }
+      },
+      { symbol, timeframe, strategy: (userSettings?.strategy || 'TECHNICAL') }
     )
 
     return () => {
@@ -68,24 +73,49 @@ function App() {
         wsConnection.close()
       }
     }
-  }, [])
+  }, [symbol, timeframe, userSettings])
 
-  // Auto refresh every 30 seconds
+  // Auto refresh with configurable interval
   useEffect(() => {
+    const refreshInterval = (userSettings?.autoRefreshInterval || 30) * 1000
     const interval = setInterval(() => {
       loadData()
-    }, 30000)
+    }, refreshInterval)
 
     return () => clearInterval(interval)
-  }, [symbol, timeframe])
+  }, [loadData, userSettings])
+
+  // Handle settings changes
+  const handleSettingsChange = (newSettings) => {
+    setUserSettings(newSettings)
+    localStorage.setItem('kokotrader_settings', JSON.stringify(newSettings))
+    // Immediately reload data when critical settings change (e.g., strategy)
+    loadData()
+  }
+
+  // Load settings from localStorage on mount
+  useEffect(() => {
+    const savedSettings = localStorage.getItem('kokotrader_settings')
+    if (savedSettings) {
+      try {
+        setUserSettings(JSON.parse(savedSettings))
+      } catch (e) {
+        console.error('Error loading settings:', e)
+      }
+    }
+  }, [])
+
+  const showBanner = !wsConnected
 
   return (
-    <div className="app">
+    <div className={`app${showBanner ? ' app--has-banner' : ''}`}>
       <Header 
         lastUpdate={lastUpdate} 
         wsConnected={wsConnected}
         onRefresh={loadData}
-      />
+      >
+        <Settings onSettingsChange={handleSettingsChange} />
+      </Header>
       
       <ConnectionStatus wsConnected={wsConnected} />
       
@@ -108,6 +138,11 @@ function App() {
               <SignalCard signal={signal} />
               <PriceChart data={ohlcvData} signal={signal} timeframe={timeframe} />
             </div>
+
+            {/* Multi-Timeframe Analysis */}
+            {signal?.mtf_analysis && userSettings?.enableMTF !== false && (
+              <MTFAnalysis mtfData={signal.mtf_analysis} />
+            )}
 
             {signal && <IndicatorsPanel indicators={signal.indicators} />}
           </>

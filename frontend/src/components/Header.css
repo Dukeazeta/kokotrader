@@ -5,7 +5,7 @@
   position: sticky;
   top: 0;
   z-index: 100;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  /* Removed shadow for flat header */
 }
 
 .header-content {
@@ -31,7 +31,7 @@
 
 .header-title {
   font-size: 1.375rem;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--text-primary);
   font-family: var(--font-mono);
   letter-spacing: -0.02em;
@@ -56,7 +56,7 @@
   padding: var(--space-sm) var(--space-md);
   border-radius: var(--radius-md);
   font-size: 0.813rem;
-  font-weight: 600;
+  font-weight: 700;
   font-family: var(--font-mono);
 }
 
@@ -112,7 +112,7 @@
   background: var(--bg-primary);
   border-color: var(--border-hover);
   color: var(--accent-primary);
-  transform: rotate(90deg);
+  /* Remove rotate for minimal interaction */
 }
 
 @media (max-width: 768px) {

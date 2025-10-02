@@ -1,4 +1,4 @@
-import { TrendingUp, TrendingDown, Activity, Target, Shield } from 'lucide-react'
+import { TrendingUp, TrendingDown, Activity, Target, Shield, Lock, CheckCircle, ArrowRight } from 'lucide-react'
 import './SignalCard.css'
 
 function SignalCard({ signal }) {
@@ -23,14 +23,52 @@ function SignalCard({ signal }) {
     return `badge badge-${signal.strength.toLowerCase()}`
   }
 
+  const getStabilityIcon = () => {
+    if (signal.signal_stability?.includes('✅')) {
+      return <CheckCircle size={16} className="stability-icon-confirmed" />
+    }
+    return <Lock size={16} className="stability-icon-locked" />
+  }
+
   return (
     <div className="card signal-card">
       <div className="card-header">
         <h2 className="card-title">Trading Signal</h2>
-        <div className="signal-icon">
-          {getSignalIcon()}
+        <div className="signal-header-right">
+          {signal.strategy_used && (
+            <span className={`strategy-badge strategy-${signal.strategy_used.toLowerCase()}`}>
+              {signal.strategy_used === 'SMC' ? '🎯 SMC' : '📊 Tech'}
+            </span>
+          )}
+          <div className="signal-icon">
+            {getSignalIcon()}
+          </div>
         </div>
       </div>
+
+      {/* Signal Stability Status */}
+      {signal.signal_stability && (
+        <div className={`signal-stability ${signal.signal_stability.includes('✅') ? 'stability-confirmed' : 'stability-locked'}`}>
+          {getStabilityIcon()}
+          <span className="stability-text">{signal.signal_stability}</span>
+        </div>
+      )}
+
+      {/* Previous Signal Comparison */}
+      {signal.previous_signal && signal.previous_signal !== signal.signal && (
+        <div className="signal-change">
+          <span className="signal-change-label">Signal Changed:</span>
+          <div className="signal-change-flow">
+            <span className={`badge badge-${signal.previous_signal.toLowerCase()}`}>
+              {signal.previous_signal}
+            </span>
+            <ArrowRight size={16} className="change-arrow" />
+            <span className={getSignalClass()}>
+              {signal.signal}
+            </span>
+          </div>
+        </div>
+      )}
 
       <div className="signal-main">
         <div className="signal-badges">

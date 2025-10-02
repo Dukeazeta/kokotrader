@@ -72,9 +72,16 @@ async def get_current_price(symbol: str):
     return price_data
 
 @app.get("/api/signals/{symbol}", response_model=SignalResponse)
-async def get_signal(symbol: str, timeframe: str = "15m"):
-    """Get trading signal for a symbol"""
-    signal = await signal_service.generate_signal(symbol.replace("-", "/"), timeframe)
+async def get_signal(symbol: str, timeframe: str = "15m", strategy: str = "TECHNICAL"):
+    """
+    Get trading signal for a symbol
+    
+    Args:
+        symbol: Trading pair (use - instead of /, e.g., BTC-USDT)
+        timeframe: Candlestick timeframe (1m, 5m, 15m, 30m, 1h, 4h, 1d)
+        strategy: Trading strategy - "TECHNICAL" (indicators) or "SMC" (Smart Money Concepts)
+    """
+    signal = await signal_service.generate_signal(symbol.replace("-", "/"), timeframe, strategy)
     return signal
 
 @app.get("/api/signals/multi/{symbols}")
@@ -116,8 +123,14 @@ async def websocket_endpoint(websocket: WebSocket):
         # Keep sending updates
         while True:
             try:
-                # Generate signal for BTC/USDT (can be customized)
-                signal = await signal_service.generate_signal("BTC/USDT", "15m")
+                # Read query params for symbol/timeframe/strategy
+                params = websocket.query_params
+                symbol = params.get("symbol", "BTC/USDT")
+                timeframe = params.get("timeframe", "15m")
+                strategy = params.get("strategy", "TECHNICAL")
+
+                # Generate signal
+                signal = await signal_service.generate_signal(symbol, timeframe, strategy)
                 
                 await websocket.send_json({
                     "type": "signal_update",

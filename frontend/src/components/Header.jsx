@@ -1,7 +1,7 @@
 import { Activity, RefreshCw } from 'lucide-react'
 import './Header.css'
 
-function Header({ lastUpdate, wsConnected, onRefresh }) {
+function Header({ lastUpdate, wsConnected, onRefresh, children }) {
   return (
     <header className="header">
       <div className="header-content">
@@ -22,9 +22,11 @@ function Header({ lastUpdate, wsConnected, onRefresh }) {
             {wsConnected ? 'Live' : 'Offline'}
           </div>
           
-          <button className="refresh-btn" onClick={onRefresh}>
+          <button className="refresh-btn" onClick={onRefresh} title="Refresh Data">
             <RefreshCw size={18} />
           </button>
+
+          {children}
         </div>
       </div>
     </header>

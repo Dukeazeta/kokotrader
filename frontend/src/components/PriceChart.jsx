@@ -81,7 +81,7 @@ function PriceChart({ data, signal, timeframe }) {
         </div>
       </div>
 
-      <ResponsiveContainer width="100%" height={400}>
+      <ResponsiveContainer width="100%" height={360}>
         <LineChart data={chartData}>
           <CartesianGrid strokeDasharray="3 3" stroke="var(--border-color)" strokeOpacity={0.3} />
           <XAxis

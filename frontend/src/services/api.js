@@ -16,11 +16,11 @@ const api = axios.create({
 /**
  * Fetch trading signal for a symbol
  */
-export const fetchSignal = async (symbol, timeframe = '15m') => {
+export const fetchSignal = async (symbol, timeframe = '15m', strategy = 'TECHNICAL') => {
   try {
     const formattedSymbol = symbol.replace('/', '-')
     const response = await api.get(`/api/signals/${formattedSymbol}`, {
-      params: { timeframe }
+      params: { timeframe, strategy }
     })
     return response.data
   } catch (error) {
@@ -62,7 +62,7 @@ export const fetchOHLCV = async (symbol, timeframe = '15m', limit = 100) => {
 /**
  * Connect to WebSocket for real-time updates with auto-reconnection
  */
-export const connectWebSocket = (onMessage, onStatusChange) => {
+export const connectWebSocket = (onMessage, onStatusChange, options = {}) => {
   let ws = null
   let reconnectTimeout = null
   let reconnectAttempts = 0
@@ -71,7 +71,11 @@ export const connectWebSocket = (onMessage, onStatusChange) => {
 
   const connect = () => {
     try {
-      ws = new WebSocket(WS_URL)
+      const symbol = encodeURIComponent(options.symbol || 'BTC/USDT')
+      const timeframe = encodeURIComponent(options.timeframe || '15m')
+      const strategy = encodeURIComponent(options.strategy || 'TECHNICAL')
+      const url = `${WS_URL}?symbol=${symbol}&timeframe=${timeframe}&strategy=${strategy}`
+      ws = new WebSocket(url)
 
       ws.onopen = () => {
         console.log('✅ WebSocket connected')
@@ -131,6 +135,10 @@ export const connectWebSocket = (onMessage, onStatusChange) => {
       if (ws) {
         ws.close()
       }
+    },
+    reconnect: () => {
+      if (ws) ws.close()
+      connect()
     }
   }
 }

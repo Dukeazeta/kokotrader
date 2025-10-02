@@ -33,6 +33,12 @@ class SignalResponse(BaseModel):
     # Market context
     trend: str  # "BULLISH", "BEARISH", "NEUTRAL", "RANGING"
     volatility: str  # "HIGH", "MEDIUM", "LOW"
+    
+    # Multi-timeframe analysis (NEW)
+    mtf_analysis: Optional[Dict[str, any]] = None  # Multi-timeframe data
+    signal_stability: Optional[str] = None  # Signal stability status
+    previous_signal: Optional[str] = None  # Previous signal for comparison
+    strategy_used: Optional[str] = None  # Strategy used: "TECHNICAL" or "SMC"
 
 class PriceData(BaseModel):
     symbol: str

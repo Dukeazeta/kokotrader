@@ -14,15 +14,8 @@
   font-family: var(--font-mono);
   font-size: 0.875rem;
   z-index: 1000;
-  animation: slideUp 0.3s ease;
+  /* Remove animation for minimal look */
 }
 
-@keyframes slideUp {
-  from {
-    transform: translateY(100%);
-  }
-  to {
-    transform: translateY(0);
-  }
-}
+/* animation removed */
 

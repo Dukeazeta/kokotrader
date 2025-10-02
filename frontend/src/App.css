@@ -1,5 +1,8 @@
 .app {
   min-height: 100vh;
+}
+
+.app--has-banner {
   padding-bottom: var(--space-2xl);
 }
 
@@ -52,7 +55,7 @@
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
   padding: var(--space-lg);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  /* Removed shadows for minimal, flat design */
 }
 
 .card-header {
@@ -66,7 +69,7 @@
 
 .card-title {
   font-size: 1.125rem;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--text-primary);
   font-family: var(--font-mono);
   letter-spacing: -0.02em;

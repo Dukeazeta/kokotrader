@@ -4,6 +4,8 @@ from models.signal import SignalResponse
 from services.price_service import PriceService
 from services.indicators import TechnicalIndicators
 from services.advanced_strategies import AdvancedStrategies
+from services.signal_stability import SignalStabilityManager, MultiTimeframeAnalyzer
+from services.smc_strategy import SMCStrategy
 
 class SignalService:
     """Generate trading signals based on multiple confluences"""
@@ -12,33 +14,55 @@ class SignalService:
         self.price_service = price_service
         self.indicators_calc = TechnicalIndicators()
         self.advanced_strategies = AdvancedStrategies()
+        self.smc_strategy = SMCStrategy()
+        self.stability_manager = SignalStabilityManager()
+        self.mtf_analyzer = MultiTimeframeAnalyzer()
     
-    async def generate_signal(self, symbol: str, timeframe: str = "15m") -> SignalResponse:
-        """Generate a complete trading signal with advanced confluences"""
+    async def generate_signal(self, symbol: str, timeframe: str = "15m", strategy: str = "TECHNICAL") -> SignalResponse:
+        """
+        Generate a complete trading signal with advanced confluences
+        
+        Args:
+            symbol: Trading pair (e.g., BTC/USDT)
+            timeframe: Candlestick timeframe (e.g., 15m, 1h)
+            strategy: "TECHNICAL" (indicators) or "SMC" (Smart Money Concepts)
+        """
         
         # Fetch price data
         df = await self.price_service.get_ohlcv_df(symbol, timeframe, limit=200)
         current_price_data = await self.price_service.get_current_price(symbol)
         current_price = current_price_data['price']
         
-        # Calculate indicators
+        # Calculate indicators (always needed for fallback data)
         indicators = self.indicators_calc.calculate_all(df)
         
         # Detect trend and volatility
         trend = self.indicators_calc.detect_trend(df, indicators)
         volatility = self.indicators_calc.detect_volatility(indicators)
         
-        # Advanced analysis
-        market_regime = self.advanced_strategies.market_regime_detection(df, indicators)
-        price_patterns = self.advanced_strategies.detect_price_action_patterns(df)
-        divergences = self.advanced_strategies.detect_divergence(df, indicators)
-        trend_strength = self.advanced_strategies.calculate_trend_strength(df, indicators)
-        support_levels, resistance_levels = self.advanced_strategies.detect_support_resistance(df, indicators)
-        
-        # Analyze confluences with advanced features
-        signal, strength, confluences, confidence = self._analyze_confluences(
-            indicators, trend, price_patterns, divergences, market_regime, trend_strength
-        )
+        # Strategy-specific signal generation
+        if strategy == "SMC":
+            # Use Smart Money Concepts
+            signal, strength, confluences, confidence = self.smc_strategy.generate_smc_signal(df)
+            confluences.insert(0, "🎯 Strategy: Smart Money Concepts (SMC)")
+            
+            # Still get support/resistance for levels calculation
+            support_levels, resistance_levels = self.advanced_strategies.detect_support_resistance(df, indicators)
+            trend_strength = 70 if signal != "HOLD" else 50  # Simplified for SMC
+            
+        else:  # Default to TECHNICAL strategy
+            # Advanced technical analysis
+            market_regime = self.advanced_strategies.market_regime_detection(df, indicators)
+            price_patterns = self.advanced_strategies.detect_price_action_patterns(df)
+            divergences = self.advanced_strategies.detect_divergence(df, indicators)
+            trend_strength = self.advanced_strategies.calculate_trend_strength(df, indicators)
+            support_levels, resistance_levels = self.advanced_strategies.detect_support_resistance(df, indicators)
+            
+            # Analyze confluences with advanced features
+            signal, strength, confluences, confidence = self._analyze_confluences(
+                indicators, trend, price_patterns, divergences, market_regime, trend_strength
+            )
+            confluences.insert(0, "📊 Strategy: Technical Analysis")
         
         # Calculate entry, stop loss, and take profit levels using S/R
         entry_price, stop_loss, tp1, tp2, tp3, risk_reward = self._calculate_levels(
@@ -47,6 +71,51 @@ class SignalService:
         
         # Position size suggestion
         position_size = self._suggest_position_size(confidence, volatility, trend_strength)
+        
+        # NEW: Check signal stability and multi-timeframe alignment
+        mtf_analysis_data = None
+        signal_stability_status = None
+        previous_signal_value = None
+        
+        try:
+            # Get multi-timeframe confirmation
+            mtf_result = await self._get_mtf_confirmation(symbol, timeframe, signal, confidence, strength, trend, strategy)
+            if mtf_result:
+                mtf_analysis_data = mtf_result
+                
+                # Override signal with MTF analysis if significantly different
+                if mtf_result.get('mtf_signal') and mtf_result.get('override', False):
+                    original_signal = signal
+                    signal = mtf_result['mtf_signal']
+                    confidence = mtf_result['mtf_confidence']
+                    strength = mtf_result.get('mtf_strength', strength)
+                    confluences.insert(0, f"🔀 MTF Override: {original_signal} → {signal} (Reason: {mtf_result.get('mtf_reason', 'Multi-timeframe conflict')})")
+            
+            # Check signal stability (prevent whipsaws)
+            last_signal = self.stability_manager.get_last_signal(symbol, timeframe)
+            if last_signal:
+                previous_signal_value = last_signal.signal
+                
+            should_flip, flip_reason = self.stability_manager.should_flip_signal(
+                symbol, signal, confidence, strength, timeframe
+            )
+            
+            if not should_flip and last_signal:
+                # Keep previous signal
+                signal_stability_status = f"⚠️ Signal stability lock: {flip_reason}"
+                confluences.insert(0, f"🔒 Keeping previous signal ({last_signal.signal}) - {flip_reason}")
+                signal = last_signal.signal
+                # Use previous levels too
+                entry_price = last_signal_entry if 'last_signal_entry' in locals() else entry_price
+            else:
+                signal_stability_status = f"✅ Signal confirmed: {flip_reason}"
+                confluences.insert(0, f"✅ {flip_reason}")
+            
+            # Add signal to history
+            self.stability_manager.add_signal(symbol, signal, strength, confidence, timeframe)
+            
+        except Exception as e:
+            print(f"MTF/Stability check error: {str(e)}")
         
         return SignalResponse(
             symbol=symbol,
@@ -66,7 +135,11 @@ class SignalService:
             indicators=indicators,
             confluences=confluences,
             trend=trend,
-            volatility=volatility
+            volatility=volatility,
+            mtf_analysis=mtf_analysis_data,
+            signal_stability=signal_stability_status,
+            previous_signal=previous_signal_value,
+            strategy_used=strategy
         )
     
     def _analyze_confluences(
@@ -379,4 +452,109 @@ class SignalService:
             return "MINIMAL (0.5-1% of portfolio)"
         else:
             return "AVOID - Confidence too low"
+    
+    async def _get_mtf_confirmation(
+        self, 
+        symbol: str, 
+        base_timeframe: str, 
+        base_signal: str,
+        base_confidence: float,
+        base_strength: str,
+        base_trend: str,
+        strategy: str = "TECHNICAL"
+    ) -> Dict:
+        """
+        Get multi-timeframe confirmation for the signal
+        Analyzes higher timeframes to confirm or reject the signal
+        """
+        try:
+            # Get confirmation timeframes (current + 1-2 higher)
+            timeframes = self.mtf_analyzer.get_confirmation_timeframes(base_timeframe)
+            
+            # Analyze each timeframe
+            mtf_signals = {}
+            
+            for tf in timeframes:
+                try:
+                    # Fetch data for this timeframe
+                    df = await self.price_service.get_ohlcv_df(symbol, tf, limit=200)
+                    indicators = self.indicators_calc.calculate_all(df)
+                    trend = self.indicators_calc.detect_trend(df, indicators)
+                    volatility = self.indicators_calc.detect_volatility(indicators)
+                    
+                    # Use selected strategy for analysis
+                    if strategy == "SMC":
+                        signal, strength, confluences, confidence = self.smc_strategy.generate_smc_signal(df)
+                    else:
+                        # Quick signal analysis for this timeframe (technical)
+                        price_patterns = self.advanced_strategies.detect_price_action_patterns(df)
+                        divergences = self.advanced_strategies.detect_divergence(df, indicators)
+                        market_regime = self.advanced_strategies.market_regime_detection(df, indicators)
+                        trend_strength = self.advanced_strategies.calculate_trend_strength(df, indicators)
+                        
+                        signal, strength, confluences, confidence = self._analyze_confluences(
+                            indicators, trend, price_patterns, divergences, market_regime, trend_strength
+                        )
+                    
+                    mtf_signals[tf] = (signal, confidence, strength)
+                    
+                except Exception as e:
+                    print(f"Error analyzing timeframe {tf}: {str(e)}")
+                    continue
+            
+            # Calculate multi-timeframe score
+            if len(mtf_signals) < 2:
+                return None  # Not enough data
+            
+            mtf_signal, mtf_confidence, mtf_reason = self.mtf_analyzer.calculate_mtf_score(mtf_signals)
+            
+            # Check if we should override the base signal
+            should_override = False
+            
+            # Override if MTF says HOLD but base says trade
+            if mtf_signal == "HOLD" and base_signal != "HOLD" and mtf_confidence > 50:
+                should_override = True
+            
+            # Override if MTF has opposite signal with high confidence
+            elif mtf_signal != base_signal and mtf_signal != "HOLD" and mtf_confidence > 70:
+                should_override = True
+            
+            # Build MTF analysis data
+            mtf_data = {
+                'timeframes_analyzed': list(mtf_signals.keys()),
+                'mtf_signal': mtf_signal,
+                'mtf_confidence': mtf_confidence,
+                'mtf_reason': mtf_reason,
+                'override': should_override,
+                'signals_by_timeframe': {
+                    tf: {'signal': sig, 'confidence': conf, 'strength': str}
+                    for tf, (sig, conf, str) in mtf_signals.items()
+                },
+                'alignment_score': mtf_confidence
+            }
+            
+            # Check higher timeframe trend alignment
+            if len(timeframes) >= 2:
+                higher_tf = timeframes[1]
+                if higher_tf in mtf_signals:
+                    df_higher = await self.price_service.get_ohlcv_df(symbol, higher_tf, limit=100)
+                    indicators_higher = self.indicators_calc.calculate_all(df_higher)
+                    trend_higher = self.indicators_calc.detect_trend(df_higher, indicators_higher)
+                    
+                    is_aligned, alignment_reason = self.mtf_analyzer.check_trend_alignment(
+                        base_trend, trend_higher, base_signal
+                    )
+                    
+                    mtf_data['trend_alignment'] = {
+                        'is_aligned': is_aligned,
+                        'reason': alignment_reason,
+                        'higher_tf': higher_tf,
+                        'higher_tf_trend': trend_higher
+                    }
+            
+            return mtf_data
+            
+        except Exception as e:
+            print(f"MTF confirmation error: {str(e)}")
+            return None
 
