@@ -1,0 +1,128 @@
+.header {
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+  padding: var(--space-md) 0;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.header-content {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 var(--space-md);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+}
+
+.header-icon {
+  color: var(--accent-primary);
+  width: 24px;
+  height: 24px;
+}
+
+.header-title {
+  font-size: 1.375rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  letter-spacing: -0.02em;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-lg);
+}
+
+.last-update {
+  font-size: 0.813rem;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+}
+
+.ws-status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-md);
+  font-size: 0.813rem;
+  font-weight: 600;
+  font-family: var(--font-mono);
+}
+
+.ws-status.connected {
+  background: var(--success-bg);
+  color: var(--success);
+  border: 1px solid var(--success);
+}
+
+.ws-status.disconnected {
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.ws-status.connected .status-dot {
+  background: var(--success);
+}
+
+.ws-status.disconnected .status-dot {
+  background: var(--text-secondary);
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.refresh-btn {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  padding: var(--space-sm);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.refresh-btn:hover {
+  background: var(--bg-primary);
+  border-color: var(--border-hover);
+  color: var(--accent-primary);
+  transform: rotate(90deg);
+}
+
+@media (max-width: 768px) {
+  .header-title {
+    font-size: 1.25rem;
+  }
+  
+  .last-update {
+    display: none;
+  }
+}
+
+
