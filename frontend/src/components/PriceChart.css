@@ -4,40 +4,46 @@
 
 .chart-info {
   display: flex;
-  gap: 1rem;
+  gap: var(--space-lg);
   align-items: center;
 }
 
 .chart-symbol {
   font-weight: 700;
-  color: #6366f1;
+  color: var(--accent-primary);
+  font-family: var(--font-mono);
 }
 
 .chart-timeframe {
   font-size: 0.875rem;
-  color: #94a3b8;
-  background: rgba(99, 102, 241, 0.1);
-  padding: 0.25rem 0.75rem;
-  border-radius: 4px;
+  color: var(--text-secondary);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  letter-spacing: 0.02em;
 }
 
 .custom-tooltip {
-  background: rgba(15, 23, 42, 0.95);
-  border: 1px solid rgba(148, 163, 184, 0.2);
-  border-radius: 8px;
-  padding: 0.75rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: var(--space-sm);
 }
 
 .tooltip-time {
   font-size: 0.75rem;
-  color: #94a3b8;
-  margin-bottom: 0.25rem;
+  color: var(--text-secondary);
+  margin-bottom: var(--space-xs);
+  font-family: var(--font-mono);
 }
 
 .tooltip-price {
   font-size: 1rem;
   font-weight: 700;
-  color: #6366f1;
+  color: var(--accent-primary);
+  font-family: var(--font-mono);
 }
 
 .chart-container {
@@ -50,17 +56,19 @@
   align-items: center;
   justify-content: center;
   height: 400px;
-  color: #94a3b8;
+  color: var(--text-secondary);
 }
 
 .recharts-cartesian-grid-horizontal line,
 .recharts-cartesian-grid-vertical line {
-  stroke: rgba(148, 163, 184, 0.1);
+  stroke: var(--border-color);
+  stroke-opacity: 0.3;
 }
 
 .recharts-text {
-  fill: #94a3b8;
+  fill: var(--text-secondary);
   font-size: 12px;
+  font-family: var(--font-mono);
 }
 
 .recharts-tooltip-wrapper {

@@ -106,7 +106,7 @@ function App() {
           <>
             <div className="main-grid">
               <SignalCard signal={signal} />
-              <PriceChart data={ohlcvData} signal={signal} />
+              <PriceChart data={ohlcvData} signal={signal} timeframe={timeframe} />
             </div>
 
             {signal && <IndicatorsPanel indicators={signal.indicators} />}
