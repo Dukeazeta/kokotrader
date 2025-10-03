@@ -7,11 +7,30 @@ const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:8000/ws'
 // Create axios instance with default config
 const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 10000,
+  timeout: 30000, // increase to handle exchange latency
   headers: {
     'Content-Type': 'application/json',
   },
 })
+
+// Simple exponential backoff retry helper for GET requests
+const getWithRetry = async (url, config = {}, attempts = 3) => {
+  let lastError
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    try {
+      return await api.get(url, config)
+    } catch (error) {
+      lastError = error
+      const isTimeout = error?.code === 'ECONNABORTED'
+      const isNetwork = !error?.response
+      const retriable = isTimeout || isNetwork
+      if (!retriable || attempt === attempts - 1) break
+      const delay = 1000 * Math.pow(2, attempt)
+      await new Promise(r => setTimeout(r, delay))
+    }
+  }
+  throw lastError
+}
 
 /**
  * Fetch trading signal for a symbol
@@ -19,7 +38,7 @@ const api = axios.create({
 export const fetchSignal = async (symbol, timeframe = '15m') => {
   try {
     const formattedSymbol = symbol.replace('/', '-')
-    const response = await api.get(`/api/signals/${formattedSymbol}`, {
+    const response = await getWithRetry(`/api/signals/${formattedSymbol}`, {
       params: { timeframe }
     })
     return response.data
@@ -49,7 +68,7 @@ export const fetchPrice = async (symbol) => {
 export const fetchOHLCV = async (symbol, timeframe = '15m', limit = 100) => {
   try {
     const formattedSymbol = symbol.replace('/', '-')
-    const response = await api.get(`/api/ohlcv/${formattedSymbol}`, {
+    const response = await getWithRetry(`/api/ohlcv/${formattedSymbol}`, {
       params: { timeframe, limit }
     })
     return response.data.data

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import Header from './components/Header'
 import SignalCard from './components/SignalCard'
-import PriceChart from './components/PriceChart'
+import TradingChartECharts from './components/TradingChartECharts'
 import SymbolSelector from './components/SymbolSelector'
 import ConnectionStatus from './components/ConnectionStatus'
 import MTFAnalysis from './components/MTFAnalysis'
@@ -146,9 +146,12 @@ function App() {
           </div>
         ) : (
           <>
-            <div className="main-grid">
+            {/* Full-width ECharts Candlestick with ICT Levels */}
+            <TradingChartECharts data={ohlcvData} signal={signal} timeframe={timeframe} />
+
+            {/* Signal Card below chart */}
+            <div className="signal-section">
               <SignalCard signal={signal} />
-              <PriceChart data={ohlcvData} signal={signal} timeframe={timeframe} />
             </div>
 
             {/* Multi-Timeframe Analysis */}

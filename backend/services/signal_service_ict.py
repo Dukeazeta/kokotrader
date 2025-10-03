@@ -1,5 +1,6 @@
 from datetime import datetime
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Any
+import numpy as np
 from models.signal import SignalResponse, LimitOrderLevel, LeverageSuggestion
 from services.price_service import PriceService
 from services.indicators import TechnicalIndicators
@@ -7,6 +8,29 @@ from services.advanced_strategies import AdvancedStrategies
 from services.signal_stability import SignalStabilityManager, MultiTimeframeAnalyzer
 from services.smc_strategy import SMCStrategy
 from services.leverage_calculator import LeverageCalculator
+
+
+def convert_numpy_types(obj: Any) -> Any:
+    """
+    Recursively convert numpy types to Python native types for JSON serialization.
+    Handles numpy.bool_, numpy.int64, numpy.float64, etc.
+    """
+    if isinstance(obj, dict):
+        return {key: convert_numpy_types(value) for key, value in obj.items()}
+    elif isinstance(obj, list):
+        return [convert_numpy_types(item) for item in obj]
+    elif isinstance(obj, tuple):
+        return tuple(convert_numpy_types(item) for item in obj)
+    elif isinstance(obj, np.bool_):
+        return bool(obj)
+    elif isinstance(obj, np.integer):
+        return int(obj)
+    elif isinstance(obj, np.floating):
+        return float(obj)
+    elif isinstance(obj, np.ndarray):
+        return obj.tolist()
+    else:
+        return obj
 
 
 class ICTSignalService:
@@ -188,6 +212,13 @@ class ICTSignalService:
         except Exception as e:
             print(f"MTF/Stability check error: {str(e)}")
         
+        # Convert all numpy types to Python native types for Pydantic serialization
+        indicators = convert_numpy_types(indicators)
+        if ote_zones:
+            ote_zones = convert_numpy_types(ote_zones)
+        if killzone_data:
+            killzone_data = convert_numpy_types(killzone_data)
+        
         return SignalResponse(
             symbol=symbol,
             timeframe=timeframe,
@@ -224,6 +255,15 @@ class ICTSignalService:
     ) -> SignalResponse:
         """Build response for SETUP_PENDING state"""
         
+        # Convert all numpy types to Python native types for Pydantic serialization
+        indicators = convert_numpy_types(indicators)
+        if ote_zones:
+            ote_zones = convert_numpy_types(ote_zones)
+        if killzone_data:
+            killzone_data = convert_numpy_types(killzone_data)
+        if pending_levels:
+            pending_levels = convert_numpy_types(pending_levels)
+        
         return SignalResponse(
             symbol=symbol,
             timeframe=timeframe,
@@ -256,6 +296,15 @@ class ICTSignalService:
         confidence, indicators, trend, volatility, at_level, killzone_data, ote_zones, limit_orders
     ) -> SignalResponse:
         """Build response for AWAITING_CONFIRMATION state"""
+        
+        # Convert all numpy types to Python native types for Pydantic serialization
+        indicators = convert_numpy_types(indicators)
+        if ote_zones:
+            ote_zones = convert_numpy_types(ote_zones)
+        if killzone_data:
+            killzone_data = convert_numpy_types(killzone_data)
+        if at_level:
+            at_level = convert_numpy_types(at_level)
         
         return SignalResponse(
             symbol=symbol,

@@ -1,11 +1,34 @@
 from datetime import datetime
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Any
+import numpy as np
 from models.signal import SignalResponse
 from services.price_service import PriceService
 from services.indicators import TechnicalIndicators
 from services.advanced_strategies import AdvancedStrategies
 from services.signal_stability import SignalStabilityManager, MultiTimeframeAnalyzer
 from services.smc_strategy import SMCStrategy
+
+def convert_numpy_types(obj: Any) -> Any:
+    """
+    Recursively convert numpy types to Python native types for JSON serialization.
+    Handles numpy.bool_, numpy.int64, numpy.float64, etc.
+    """
+    if isinstance(obj, dict):
+        return {key: convert_numpy_types(value) for key, value in obj.items()}
+    elif isinstance(obj, list):
+        return [convert_numpy_types(item) for item in obj]
+    elif isinstance(obj, tuple):
+        return tuple(convert_numpy_types(item) for item in obj)
+    elif isinstance(obj, np.bool_):
+        return bool(obj)
+    elif isinstance(obj, np.integer):
+        return int(obj)
+    elif isinstance(obj, np.floating):
+        return float(obj)
+    elif isinstance(obj, np.ndarray):
+        return obj.tolist()
+    else:
+        return obj
 
 class SignalService:
     """Generate trading signals based on multiple confluences"""
@@ -116,6 +139,11 @@ class SignalService:
             
         except Exception as e:
             print(f"MTF/Stability check error: {str(e)}")
+        
+        # Convert all numpy types to Python native types for Pydantic serialization
+        indicators = convert_numpy_types(indicators)
+        if mtf_analysis_data:
+            mtf_analysis_data = convert_numpy_types(mtf_analysis_data)
         
         return SignalResponse(
             symbol=symbol,
@@ -532,6 +560,9 @@ class SignalService:
                 },
                 'alignment_score': mtf_confidence
             }
+            
+            # Convert any numpy types to Python native types
+            mtf_data = convert_numpy_types(mtf_data)
             
             # Check higher timeframe trend alignment
             if len(timeframes) >= 2:

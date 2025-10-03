@@ -138,14 +138,26 @@ async def websocket_endpoint(websocket: WebSocket):
                 
                 # Wait 30 seconds before next update
                 await asyncio.sleep(30)
+                
+            except WebSocketDisconnect:
+                # Client disconnected, break out of loop
+                break
             except Exception as e:
-                await websocket.send_json({
-                    "type": "error",
-                    "message": str(e)
-                })
+                # Log error but don't try to send if disconnected
+                print(f"WebSocket error: {str(e)}")
+                try:
+                    await websocket.send_json({
+                        "type": "error",
+                        "message": str(e)
+                    })
+                except:
+                    # If we can't send, connection is likely dead
+                    break
                 await asyncio.sleep(30)
                 
     except WebSocketDisconnect:
+        pass
+    finally:
         manager.disconnect(websocket)
 
 if __name__ == "__main__":

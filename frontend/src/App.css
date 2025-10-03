@@ -19,6 +19,10 @@
   margin-bottom: var(--space-lg);
 }
 
+.signal-section {
+  margin: var(--space-lg) 0;
+}
+
 @media (max-width: 968px) {
   .main-grid {
     grid-template-columns: 1fr;
