@@ -3,7 +3,7 @@
 }
 
 .signal-icon {
-  color: #6366f1;
+  color: var(--accent-primary);
 }
 
 .signal-header-right {
@@ -171,7 +171,7 @@
 
 .info-value.price {
   font-size: 1.5rem;
-  color: #6366f1;
+  color: var(--accent-primary);
 }
 
 .info-value.small {
@@ -194,7 +194,7 @@
   gap: 0.5rem;
   font-size: 0.875rem;
   font-weight: 600;
-  color: #cbd5e1;
+  color: var(--text-secondary);
 }
 
 .level-value {
@@ -203,7 +203,7 @@
 }
 
 .level-value.stop-loss {
-  color: #f87171;
+  color: var(--error);
 }
 
 .tp-levels {
@@ -250,24 +250,24 @@
 }
 
 .context-item span:first-child {
-  color: #94a3b8;
+  color: var(--text-secondary);
 }
 
 .context-item span:last-child {
   font-weight: 600;
-  color: #f1f5f9;
+  color: var(--text-primary);
 }
 
 .trend-bullish {
-  color: #4ade80 !important;
+  color: var(--success) !important;
 }
 
 .trend-bearish {
-  color: #f87171 !important;
+  color: var(--error) !important;
 }
 
 .trend-neutral, .trend-ranging {
-  color: #fbbf24 !important;
+  color: var(--warning) !important;
 }
 
 .confluences {
@@ -277,7 +277,7 @@
 .confluences h3 {
   font-size: 1rem;
   margin-bottom: 0.75rem;
-  color: #cbd5e1;
+  color: var(--text-secondary);
 }
 
 .confluences ul {
@@ -294,7 +294,7 @@
   border-left: 3px solid var(--accent-primary);
   border-radius: 4px;
   font-size: 0.875rem;
-  color: #cbd5e1;
+  color: var(--text-secondary);
 }
 
 

@@ -9,9 +9,9 @@ function IndicatorsPanel({ indicators }) {
   }
 
   const getRSIColor = (rsi) => {
-    if (rsi < 30) return '#4ade80'
-    if (rsi > 70) return '#f87171'
-    return '#fbbf24'
+    if (rsi < 30) return 'var(--success)'
+    if (rsi > 70) return 'var(--error)'
+    return 'var(--warning)'
   }
 
   const getADXStrength = (adx) => {
@@ -67,7 +67,7 @@ function IndicatorsPanel({ indicators }) {
             </div>
             <div className="detail-row">
               <span>Histogram:</span>
-              <span style={{ color: indicators.macd_diff > 0 ? '#4ade80' : '#f87171' }}>
+              <span style={{ color: indicators.macd_diff > 0 ? 'var(--success)' : 'var(--error)' }}>
                 {formatNumber(indicators.macd_diff)}
               </span>
             </div>
@@ -86,11 +86,11 @@ function IndicatorsPanel({ indicators }) {
           <div className="indicator-details">
             <div className="detail-row">
               <span>+DI:</span>
-              <span style={{ color: '#4ade80' }}>{formatNumber(indicators.adx_pos)}</span>
+              <span style={{ color: 'var(--success)' }}>{formatNumber(indicators.adx_pos)}</span>
             </div>
             <div className="detail-row">
               <span>-DI:</span>
-              <span style={{ color: '#f87171' }}>{formatNumber(indicators.adx_neg)}</span>
+              <span style={{ color: 'var(--error)' }}>{formatNumber(indicators.adx_neg)}</span>
             </div>
           </div>
         </div>
@@ -156,7 +156,7 @@ function IndicatorsPanel({ indicators }) {
             <div className="detail-row">
               <span>%K:</span>
               <span style={{ 
-                color: indicators.stoch_k < 20 ? '#4ade80' : indicators.stoch_k > 80 ? '#f87171' : '#fbbf24' 
+                color: indicators.stoch_k < 20 ? 'var(--success)' : indicators.stoch_k > 80 ? 'var(--error)' : 'var(--warning)'
               }}>
                 {formatNumber(indicators.stoch_k)}
               </span>
@@ -193,7 +193,7 @@ function IndicatorsPanel({ indicators }) {
             <div className="detail-row">
               <span>Ratio:</span>
               <span style={{ 
-                color: indicators.volume_ratio > 1.5 ? '#4ade80' : '#fbbf24' 
+                color: indicators.volume_ratio > 1.5 ? 'var(--success)' : 'var(--warning)' 
               }}>
                 {formatNumber(indicators.volume_ratio)}x
               </span>

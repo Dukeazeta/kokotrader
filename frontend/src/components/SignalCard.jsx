@@ -90,7 +90,7 @@ function SignalCard({ signal }) {
               className="confidence-fill"
               style={{ 
                 width: `${signal.confidence}%`,
-                background: signal.confidence > 75 ? '#4ade80' : signal.confidence > 50 ? '#fbbf24' : '#f87171'
+                background: signal.confidence > 75 ? 'var(--success)' : signal.confidence > 50 ? 'var(--warning)' : 'var(--error)'
               }}
             />
           </div>

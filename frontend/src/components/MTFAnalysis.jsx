@@ -18,11 +18,11 @@ function MTFAnalysis({ mtfData }) {
   const getSignalColor = (signal) => {
     switch (signal) {
       case 'LONG':
-        return '#10b981'
+        return 'var(--success)'
       case 'SHORT':
-        return '#ef4444'
+        return 'var(--error)'
       default:
-        return '#9ca3af'
+        return 'var(--text-secondary)'
     }
   }
 
@@ -124,8 +124,8 @@ function MTFAnalysis({ mtfData }) {
               className="mtf-score-fill"
               style={{ 
                 width: `${mtfData.alignment_score}%`,
-                background: mtfData.alignment_score > 75 ? '#10b981' : 
-                           mtfData.alignment_score > 50 ? '#f59e0b' : '#ef4444'
+                background: mtfData.alignment_score > 75 ? 'var(--success)' : 
+                           mtfData.alignment_score > 50 ? 'var(--warning)' : 'var(--error)'
               }}
             />
           </div>

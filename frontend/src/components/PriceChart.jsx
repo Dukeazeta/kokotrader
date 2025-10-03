@@ -25,9 +25,9 @@ function PriceChart({ data, signal, timeframe }) {
         <ReferenceLine
           key="entry"
           y={signal.entry_price}
-          stroke="#6366f1"
+          stroke="var(--accent-primary)"
           strokeDasharray="3 3"
-          label={{ value: 'Entry', fill: '#6366f1', fontSize: 12 }}
+          label={{ value: 'Entry', fill: 'var(--accent-primary)', fontSize: 12 }}
         />
       )
     }
@@ -37,9 +37,9 @@ function PriceChart({ data, signal, timeframe }) {
         <ReferenceLine
           key="sl"
           y={signal.stop_loss}
-          stroke="#f87171"
+          stroke="var(--error)"
           strokeDasharray="3 3"
-          label={{ value: 'SL', fill: '#f87171', fontSize: 12 }}
+          label={{ value: 'SL', fill: 'var(--error)', fontSize: 12 }}
         />
       )
     }
@@ -49,9 +49,9 @@ function PriceChart({ data, signal, timeframe }) {
         <ReferenceLine
           key="tp1"
           y={signal.take_profit_1}
-          stroke="#4ade80"
+          stroke="var(--success)"
           strokeDasharray="3 3"
-          label={{ value: 'TP1', fill: '#4ade80', fontSize: 12 }}
+          label={{ value: 'TP1', fill: 'var(--success)', fontSize: 12 }}
         />
       )
     }
@@ -101,7 +101,7 @@ function PriceChart({ data, signal, timeframe }) {
           <Line
             type="monotone"
             dataKey="price"
-            stroke="#6366f1"
+            stroke="var(--accent-primary)"
             strokeWidth={2}
             dot={false}
             animationDuration={500}
