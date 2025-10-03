@@ -16,11 +16,11 @@ const api = axios.create({
 /**
  * Fetch trading signal for a symbol
  */
-export const fetchSignal = async (symbol, timeframe = '15m', strategy = 'TECHNICAL') => {
+export const fetchSignal = async (symbol, timeframe = '15m') => {
   try {
     const formattedSymbol = symbol.replace('/', '-')
     const response = await api.get(`/api/signals/${formattedSymbol}`, {
-      params: { timeframe, strategy }
+      params: { timeframe }
     })
     return response.data
   } catch (error) {
@@ -68,13 +68,12 @@ export const connectWebSocket = (onMessage, onStatusChange, options = {}) => {
   let reconnectAttempts = 0
   const maxReconnectAttempts = 5
   const reconnectDelay = 5000 // 5 seconds
-
+  
   const connect = () => {
     try {
       const symbol = encodeURIComponent(options.symbol || 'BTC/USDT')
       const timeframe = encodeURIComponent(options.timeframe || '15m')
-      const strategy = encodeURIComponent(options.strategy || 'TECHNICAL')
-      const url = `${WS_URL}?symbol=${symbol}&timeframe=${timeframe}&strategy=${strategy}`
+      const url = `${WS_URL}?symbol=${symbol}&timeframe=${timeframe}`
       ws = new WebSocket(url)
 
       ws.onopen = () => {

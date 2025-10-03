@@ -7,7 +7,7 @@ import os
 from datetime import datetime
 
 from services.price_service import PriceService
-from services.signal_service import SignalService
+from services.signal_service_ict import ICTSignalService
 from models.signal import SignalResponse
 
 app = FastAPI(title="Crypto Futures Signals Bot")
@@ -38,7 +38,7 @@ app.add_middleware(
 
 # Initialize services
 price_service = PriceService()
-signal_service = SignalService(price_service)
+signal_service = ICTSignalService(price_service)  # ICT-Only signal service
 
 # WebSocket connection manager
 class ConnectionManager:
@@ -72,16 +72,15 @@ async def get_current_price(symbol: str):
     return price_data
 
 @app.get("/api/signals/{symbol}", response_model=SignalResponse)
-async def get_signal(symbol: str, timeframe: str = "15m", strategy: str = "TECHNICAL"):
+async def get_signal(symbol: str, timeframe: str = "15m"):
     """
-    Get trading signal for a symbol
+    Get ICT trading signal for a symbol
     
     Args:
         symbol: Trading pair (use - instead of /, e.g., BTC-USDT)
         timeframe: Candlestick timeframe (1m, 5m, 15m, 30m, 1h, 4h, 1d)
-        strategy: Trading strategy - "TECHNICAL" (indicators) or "SMC" (Smart Money Concepts)
     """
-    signal = await signal_service.generate_signal(symbol.replace("-", "/"), timeframe, strategy)
+    signal = await signal_service.generate_signal(symbol.replace("-", "/"), timeframe)
     return signal
 
 @app.get("/api/signals/multi/{symbols}")
@@ -111,26 +110,25 @@ async def get_ohlcv(symbol: str, timeframe: str = "15m", limit: int = 100):
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
-    """WebSocket endpoint for real-time signal updates"""
+    """WebSocket endpoint for real-time ICT signal updates"""
     await manager.connect(websocket)
     try:
         # Send initial data
         await websocket.send_json({
             "type": "connected",
-            "message": "Connected to signals stream"
+            "message": "Connected to ICT signals stream"
         })
         
         # Keep sending updates
         while True:
             try:
-                # Read query params for symbol/timeframe/strategy
+                # Read query params for symbol/timeframe
                 params = websocket.query_params
                 symbol = params.get("symbol", "BTC/USDT")
                 timeframe = params.get("timeframe", "15m")
-                strategy = params.get("strategy", "TECHNICAL")
 
-                # Generate signal
-                signal = await signal_service.generate_signal(symbol, timeframe, strategy)
+                # Generate ICT signal
+                signal = await signal_service.generate_signal(symbol, timeframe)
                 
                 await websocket.send_json({
                     "type": "signal_update",

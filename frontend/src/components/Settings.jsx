@@ -5,7 +5,6 @@ import './Settings.css'
 function Settings({ onSettingsChange }) {
   const [isOpen, setIsOpen] = useState(false)
   const [settings, setSettings] = useState({
-    strategy: 'TECHNICAL',
     minConfidenceDiff: 15,
     cooldownMinutes: 10,
     enableMTF: true,
@@ -28,7 +27,6 @@ function Settings({ onSettingsChange }) {
 
   const handleReset = () => {
     const defaultSettings = {
-      strategy: 'TECHNICAL',
       minConfidenceDiff: 15,
       cooldownMinutes: 10,
       enableMTF: true,
@@ -63,48 +61,12 @@ function Settings({ onSettingsChange }) {
             </div>
 
             <div className="settings-content">
-              {/* Strategy Selection */}
+              {/* ICT Notice */}
               <div className="settings-section">
-                <h3 className="settings-section-title">Trading Strategy</h3>
+                <h3 className="settings-section-title">🎯 ICT / Smart Money Concepts</h3>
                 <p className="settings-section-desc">
-                  Choose your signal generation approach
+                  Pure institutional trading approach using Order Blocks, Fair Value Gaps, Liquidity Sweeps, OTE zones, and Killzone timing.
                 </p>
-
-                <div className="strategy-selector">
-                  <label 
-                    className={`strategy-option ${settings.strategy === 'TECHNICAL' ? 'active' : ''}`}
-                    onClick={() => handleChange('strategy', 'TECHNICAL')}
-                  >
-                    <input
-                      type="radio"
-                      name="strategy"
-                      value="TECHNICAL"
-                      checked={settings.strategy === 'TECHNICAL'}
-                      onChange={(e) => handleChange('strategy', e.target.value)}
-                    />
-                    <div className="strategy-content">
-                      <span className="strategy-name">📊 Technical Analysis</span>
-                      <span className="strategy-desc">RSI, MACD, EMA, Bollinger Bands</span>
-                    </div>
-                  </label>
-
-                  <label 
-                    className={`strategy-option ${settings.strategy === 'SMC' ? 'active' : ''}`}
-                    onClick={() => handleChange('strategy', 'SMC')}
-                  >
-                    <input
-                      type="radio"
-                      name="strategy"
-                      value="SMC"
-                      checked={settings.strategy === 'SMC'}
-                      onChange={(e) => handleChange('strategy', e.target.value)}
-                    />
-                    <div className="strategy-content">
-                      <span className="strategy-name">🎯 Smart Money Concepts</span>
-                      <span className="strategy-desc">Order Blocks, FVG, Market Structure</span>
-                    </div>
-                  </label>
-                </div>
               </div>
 
               {/* Signal Stability */}

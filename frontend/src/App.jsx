@@ -2,17 +2,21 @@ import { useState, useEffect, useCallback } from 'react'
 import Header from './components/Header'
 import SignalCard from './components/SignalCard'
 import PriceChart from './components/PriceChart'
-import IndicatorsPanel from './components/IndicatorsPanel'
 import SymbolSelector from './components/SymbolSelector'
 import ConnectionStatus from './components/ConnectionStatus'
 import MTFAnalysis from './components/MTFAnalysis'
+import LimitOrders from './components/LimitOrders'
 import Settings from './components/Settings'
 import { fetchSignal, fetchOHLCV, connectWebSocket } from './services/api'
 import './App.css'
 
 function App() {
-  const [symbol, setSymbol] = useState('BTC/USDT')
-  const [timeframe, setTimeframe] = useState('15m')
+  const [symbol, setSymbol] = useState(() => {
+    return localStorage.getItem('kokotrader_symbol') || 'BTC/USDT'
+  })
+  const [timeframe, setTimeframe] = useState(() => {
+    return localStorage.getItem('kokotrader_timeframe') || '15m'
+  })
   const [signal, setSignal] = useState(null)
   const [ohlcvData, setOhlcvData] = useState([])
   const [loading, setLoading] = useState(true)
@@ -20,13 +24,21 @@ function App() {
   const [wsConnected, setWsConnected] = useState(false)
   const [userSettings, setUserSettings] = useState(null)
 
+  // Persist symbol and timeframe to localStorage
+  useEffect(() => {
+    localStorage.setItem('kokotrader_symbol', symbol)
+  }, [symbol])
+
+  useEffect(() => {
+    localStorage.setItem('kokotrader_timeframe', timeframe)
+  }, [timeframe])
+
   // Fetch signal and chart data (memoized to prevent recreating function)
   const loadData = useCallback(async () => {
     setLoading(true)
     try {
-      const strategy = userSettings?.strategy || 'TECHNICAL'
       const [signalData, chartData] = await Promise.all([
-        fetchSignal(symbol, timeframe, strategy),
+        fetchSignal(symbol, timeframe),
         fetchOHLCV(symbol, timeframe, 100)
       ])
       
@@ -38,7 +50,7 @@ function App() {
     } finally {
       setLoading(false)
     }
-  }, [symbol, timeframe, userSettings])
+  }, [symbol, timeframe])
 
   // Initial load
   useEffect(() => {
@@ -65,7 +77,7 @@ function App() {
       (connected) => {
         setWsConnected(connected)
       },
-      { symbol, timeframe, strategy: (userSettings?.strategy || 'TECHNICAL') }
+      { symbol, timeframe }
     )
 
     return () => {
@@ -73,7 +85,7 @@ function App() {
         wsConnection.close()
       }
     }
-  }, [symbol, timeframe, userSettings])
+  }, [symbol, timeframe])
 
   // Auto refresh with configurable interval
   useEffect(() => {
@@ -144,7 +156,12 @@ function App() {
               <MTFAnalysis mtfData={signal.mtf_analysis} />
             )}
 
-            {signal && <IndicatorsPanel indicators={signal.indicators} />}
+            {/* Limit Orders Suggestions */}
+            {signal?.limit_orders && signal.limit_orders.length > 0 && (
+              <LimitOrders limitOrders={signal.limit_orders} signal={signal.signal} />
+            )}
+
+            {/* Indicators Panel removed - ICT only, no Technical Analysis */}
           </>
         )}
       </div>

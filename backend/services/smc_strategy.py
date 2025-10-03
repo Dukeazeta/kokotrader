@@ -1,10 +1,13 @@
 """
 Smart Money Concepts (SMC) Strategy
 Institutional trading approach focusing on market structure, order blocks, and liquidity
+Enhanced with ICT concepts: Killzones, OTE, Liquidity Sweeps, Breaker Blocks
 """
 import pandas as pd
 import numpy as np
 from typing import Dict, List, Tuple, Optional
+from datetime import datetime
+import pytz
 
 
 class SMCStrategy:
@@ -320,18 +323,467 @@ class SMCStrategy:
         }
     
     @staticmethod
-    def generate_smc_signal(df: pd.DataFrame) -> Tuple[str, str, List[str], float]:
+    def is_in_killzone(timestamp: datetime = None) -> Dict:
         """
-        Generate trading signal based on SMC concepts
+        Check if current time is in ICT Killzone
+        - London Open: 02:00-05:00 EST (high probability)
+        - New York AM: 08:00-11:00 EST (highest probability)
+        - London Close: 10:00-12:00 EST (medium probability)
+        """
+        if timestamp is None:
+            timestamp = datetime.now(pytz.UTC)
         
-        Returns: (signal, strength, confluences, confidence)
+        # Convert to EST
+        est = pytz.timezone('US/Eastern')
+        est_time = timestamp.astimezone(est)
+        hour = est_time.hour
+        
+        if 2 <= hour < 5:
+            return {
+                "in_killzone": True,
+                "killzone_name": "London Open",
+                "probability_multiplier": 1.3,
+                "description": "High probability setup window"
+            }
+        elif 8 <= hour < 11:
+            return {
+                "in_killzone": True,
+                "killzone_name": "New York AM",
+                "probability_multiplier": 1.5,
+                "description": "Highest probability setup window"
+            }
+        elif 10 <= hour < 12:
+            return {
+                "in_killzone": True,
+                "killzone_name": "London Close",
+                "probability_multiplier": 1.2,
+                "description": "Medium probability setup window"
+            }
+        else:
+            return {
+                "in_killzone": False,
+                "killzone_name": None,
+                "probability_multiplier": 1.0,
+                "description": "Outside killzone - lower probability"
+            }
+    
+    @staticmethod
+    def calculate_ote_zones(df: pd.DataFrame, structure: Dict) -> Dict:
+        """
+        Calculate Optimal Trade Entry zones (0.62, 0.705, 0.79 Fibonacci)
+        Based on recent impulse move (swing high to swing low)
+        """
+        if len(df) < 20 or structure.get('structure') == "UNCLEAR":
+            return {}
+        
+        # Find last significant impulse move
+        recent_data = df.tail(50)
+        swing_high = recent_data['high'].max()
+        swing_low = recent_data['low'].min()
+        
+        # Find where these swings occurred
+        high_idx = recent_data['high'].idxmax()
+        low_idx = recent_data['low'].idxmin()
+        
+        # Determine direction of last impulse
+        if high_idx > low_idx:
+            # Bullish impulse (from low to high)
+            impulse_start = swing_low
+            impulse_end = swing_high
+            direction = "BULLISH"
+        else:
+            # Bearish impulse (from high to low)
+            impulse_start = swing_high
+            impulse_end = swing_low
+            direction = "BEARISH"
+        
+        impulse_range = abs(impulse_end - impulse_start)
+        
+        # Calculate Fibonacci retracement levels (OTE zones)
+        if direction == "BULLISH":
+            # For bullish, we want retracements from high back down
+            ote_62 = impulse_end - (impulse_range * 0.62)
+            ote_705 = impulse_end - (impulse_range * 0.705)
+            ote_79 = impulse_end - (impulse_range * 0.79)
+        else:
+            # For bearish, we want retracements from low back up
+            ote_62 = impulse_end + (impulse_range * 0.62)
+            ote_705 = impulse_end + (impulse_range * 0.705)
+            ote_79 = impulse_end + (impulse_range * 0.79)
+        
+        current_price = df['close'].iloc[-1]
+        
+        # Check if price is in OTE zone
+        if direction == "BULLISH":
+            in_ote = ote_79 <= current_price <= ote_62
+        else:
+            in_ote = ote_62 <= current_price <= ote_79
+        
+        return {
+            "direction": direction,
+            "ote_0.62": round(ote_62, 2),
+            "ote_0.705": round(ote_705, 2),
+            "ote_0.79": round(ote_79, 2),
+            "in_ote_zone": in_ote,
+            "optimal_entry": round(ote_705, 2),  # 0.705 is the "golden pocket"
+            "impulse_high": swing_high,
+            "impulse_low": swing_low
+        }
+    
+    @staticmethod
+    def detect_liquidity_sweeps(df: pd.DataFrame, liquidity_zones: Dict) -> Dict:
+        """
+        Detect when price sweeps liquidity (takes stops) then reverses
+        - Price wicks above/below equal highs/lows
+        - Then closes back inside range (rejection)
+        """
+        if len(df) < 5:
+            return {"bullish_sweep": False, "bearish_sweep": False}
+        
+        recent_candles = df.tail(3)
+        last_candle = df.iloc[-1]
+        prev_candle = df.iloc[-2]
+        
+        bullish_sweep = False
+        bearish_sweep = False
+        swept_level = None
+        
+        # Check for bullish sweep (sweep sell-side liquidity then reverse up)
+        # Price wicks below support/equal lows then closes higher
+        sell_side_liquidity = liquidity_zones.get('sell_side_liquidity', [])
+        
+        for level in sell_side_liquidity:
+            # Check if last candle wicked below level but closed above it
+            if last_candle['low'] < level < last_candle['close']:
+                # Confirm it's a rejection (close in upper 60% of candle)
+                candle_range = last_candle['high'] - last_candle['low']
+                close_position = (last_candle['close'] - last_candle['low']) / candle_range if candle_range > 0 else 0
+                
+                if close_position > 0.6:
+                    bullish_sweep = True
+                    swept_level = level
+                    break
+        
+        # Check for bearish sweep (sweep buy-side liquidity then reverse down)
+        # Price wicks above resistance/equal highs then closes lower
+        buy_side_liquidity = liquidity_zones.get('buy_side_liquidity', [])
+        
+        for level in buy_side_liquidity:
+            # Check if last candle wicked above level but closed below it
+            if last_candle['high'] > level > last_candle['close']:
+                # Confirm it's a rejection (close in lower 60% of candle)
+                candle_range = last_candle['high'] - last_candle['low']
+                close_position = (last_candle['close'] - last_candle['low']) / candle_range if candle_range > 0 else 0
+                
+                if close_position < 0.4:
+                    bearish_sweep = True
+                    swept_level = level
+                    break
+        
+        return {
+            "bullish_sweep": bullish_sweep,
+            "bearish_sweep": bearish_sweep,
+            "swept_level": swept_level
+        }
+    
+    @staticmethod
+    def detect_breaker_blocks(df: pd.DataFrame, order_blocks: Dict, structure: Dict) -> Dict:
+        """
+        Breaker Block = Failed Order Block that becomes opposite signal
+        When price breaks through OB without respect, it becomes a Breaker
+        """
+        if len(df) < 10:
+            return {"bullish_breaker": [], "bearish_breaker": []}
+        
+        current_price = df['close'].iloc[-1]
+        recent_high = df.tail(5)['high'].max()
+        recent_low = df.tail(5)['low'].min()
+        
+        bullish_breakers = []
+        bearish_breakers = []
+        
+        # Check bullish OBs that got broken (become bearish breakers)
+        for ob in order_blocks.get('bullish_ob', []):
+            # If price broke significantly below a bullish OB, it becomes a bearish breaker
+            if current_price < ob['low'] * 0.995:
+                bearish_breakers.append({
+                    'high': ob['high'],
+                    'low': ob['low'],
+                    'strength': ob['strength'] * 0.8,  # Breakers slightly less reliable
+                    'type': 'FAILED_BULLISH_OB'
+                })
+        
+        # Check bearish OBs that got broken (become bullish breakers)
+        for ob in order_blocks.get('bearish_ob', []):
+            # If price broke significantly above a bearish OB, it becomes a bullish breaker
+            if current_price > ob['high'] * 1.005:
+                bullish_breakers.append({
+                    'high': ob['high'],
+                    'low': ob['low'],
+                    'strength': ob['strength'] * 0.8,
+                    'type': 'FAILED_BEARISH_OB'
+                })
+        
+        return {
+            "bullish_breaker": bullish_breakers[:2],  # Keep top 2
+            "bearish_breaker": bearish_breakers[:2]
+        }
+    
+    @staticmethod
+    def check_price_at_key_level(
+        current_price: float, 
+        key_levels: List[Dict], 
+        tolerance_pct: float = 0.3
+    ) -> Optional[Dict]:
+        """
+        Check if current price is AT (not just near) a key ICT level
+        
+        key_levels = [
+            {"type": "ORDER_BLOCK", "price": 45000, "high": 45100, "low": 44900, "confluence": 5},
+            {"type": "FVG_50", "price": 44500, "confluence": 3},
+            {"type": "OTE_0.705", "price": 44200, "confluence": 4},
+            ...
+        ]
+        
+        Returns the key level dict if price is within tolerance, else None
+        """
+        for level in key_levels:
+            level_price = level.get('price', 0)
+            level_high = level.get('high', level_price)
+            level_low = level.get('low', level_price)
+            
+            # Calculate tolerance
+            tolerance = level_price * (tolerance_pct / 100)
+            
+            # Check if price is within tolerance of the level
+            if level_low - tolerance <= current_price <= level_high + tolerance:
+                return level
+        
+        return None
+    
+    @staticmethod
+    def wait_for_confirmation(df: pd.DataFrame, signal_direction: str, key_level: Dict) -> bool:
+        """
+        Wait for confirmation candle before triggering signal:
+        - For LONG: Bullish candle close above key level OR bullish rejection wick
+        - For SHORT: Bearish candle close below key level OR bearish rejection wick
+        - Check last 1-2 candles
+        
+        Returns True if confirmed, False if waiting
+        """
+        if len(df) < 2:
+            return False
+        
+        last_candle = df.iloc[-1]
+        prev_candle = df.iloc[-2]
+        
+        level_price = key_level.get('price', 0)
+        level_high = key_level.get('high', level_price)
+        level_low = key_level.get('low', level_price)
+        
+        if signal_direction == "LONG":
+            # Check for bullish confirmation
+            # 1. Bullish candle (close > open)
+            is_bullish_candle = last_candle['close'] > last_candle['open']
+            
+            # 2. Close above key level
+            closes_above = last_candle['close'] > level_low
+            
+            # 3. OR bullish rejection wick (long lower wick, close in upper half)
+            candle_range = last_candle['high'] - last_candle['low']
+            lower_wick = last_candle['open'] - last_candle['low'] if last_candle['close'] > last_candle['open'] else last_candle['close'] - last_candle['low']
+            close_position = (last_candle['close'] - last_candle['low']) / candle_range if candle_range > 0 else 0
+            
+            has_rejection_wick = lower_wick > candle_range * 0.4 and close_position > 0.6
+            
+            return (is_bullish_candle and closes_above) or has_rejection_wick
+            
+        elif signal_direction == "SHORT":
+            # Check for bearish confirmation
+            # 1. Bearish candle (close < open)
+            is_bearish_candle = last_candle['close'] < last_candle['open']
+            
+            # 2. Close below key level
+            closes_below = last_candle['close'] < level_high
+            
+            # 3. OR bearish rejection wick (long upper wick, close in lower half)
+            candle_range = last_candle['high'] - last_candle['low']
+            upper_wick = last_candle['high'] - last_candle['open'] if last_candle['close'] < last_candle['open'] else last_candle['high'] - last_candle['close']
+            close_position = (last_candle['close'] - last_candle['low']) / candle_range if candle_range > 0 else 0
+            
+            has_rejection_wick = upper_wick > candle_range * 0.4 and close_position < 0.4
+            
+            return (is_bearish_candle and closes_below) or has_rejection_wick
+        
+        return False
+    
+    @staticmethod
+    def calculate_limit_orders(
+        signal: str,
+        current_price: float,
+        order_blocks: Dict,
+        fvgs: Dict,
+        ote_zones: Dict,
+        zones: Dict,
+        breakers: Dict
+    ) -> List[Dict]:
+        """
+        Calculate optimal limit order entry levels with confluence ranking
+        
+        Returns list of entry levels sorted by confluence (best first)
+        """
+        limit_levels = []
+        
+        if signal == "LONG":
+            # Order Block lows (demand zones)
+            for ob in order_blocks.get('bullish_ob', [])[:3]:
+                if ob['low'] < current_price:
+                    confluence = 3  # Base confluence
+                    confluence += min(int(ob['strength']), 3)  # Add strength
+                    
+                    limit_levels.append({
+                        "price": ob['low'],
+                        "type": "ORDER_BLOCK_LOW",
+                        "confluence": confluence,
+                        "description": f"Bullish Order Block (Strength: {ob['strength']:.1f})"
+                    })
+            
+            # FVG midpoints
+            for fvg in fvgs.get('bullish_fvg', [])[:2]:
+                if fvg['bottom'] < current_price:
+                    midpoint = (fvg['top'] + fvg['bottom']) / 2
+                    confluence = 2
+                    
+                    limit_levels.append({
+                        "price": midpoint,
+                        "type": "FVG_MIDPOINT",
+                        "confluence": confluence,
+                        "description": f"FVG 50% Fill (${fvg['bottom']:.2f}-${fvg['top']:.2f})"
+                    })
+            
+            # OTE levels
+            if ote_zones and ote_zones.get('direction') == "BULLISH":
+                for fib_level in ['ote_0.62', 'ote_0.705', 'ote_0.79']:
+                    price = ote_zones.get(fib_level)
+                    if price and price < current_price:
+                        confluence = 4 if '705' in fib_level else 3
+                        
+                        limit_levels.append({
+                            "price": price,
+                            "type": f"OTE_{fib_level.split('_')[1]}",
+                            "confluence": confluence,
+                            "description": f"Optimal Trade Entry {fib_level.split('_')[1]}"
+                        })
+            
+            # Discount zone levels
+            if zones and zones.get('current_zone') == "DISCOUNT":
+                equilibrium = zones.get('equilibrium')
+                if equilibrium and equilibrium < current_price:
+                    limit_levels.append({
+                        "price": equilibrium,
+                        "type": "EQUILIBRIUM",
+                        "confluence": 2,
+                        "description": "50% Equilibrium Level"
+                    })
+            
+            # Breaker blocks
+            for breaker in breakers.get('bullish_breaker', []):
+                if breaker['low'] < current_price:
+                    limit_levels.append({
+                        "price": breaker['low'],
+                        "type": "BREAKER_BLOCK",
+                        "confluence": 3,
+                        "description": "Bullish Breaker Block"
+                    })
+        
+        elif signal == "SHORT":
+            # Order Block highs (supply zones)
+            for ob in order_blocks.get('bearish_ob', [])[:3]:
+                if ob['high'] > current_price:
+                    confluence = 3
+                    confluence += min(int(ob['strength']), 3)
+                    
+                    limit_levels.append({
+                        "price": ob['high'],
+                        "type": "ORDER_BLOCK_HIGH",
+                        "confluence": confluence,
+                        "description": f"Bearish Order Block (Strength: {ob['strength']:.1f})"
+                    })
+            
+            # FVG midpoints
+            for fvg in fvgs.get('bearish_fvg', [])[:2]:
+                if fvg['top'] > current_price:
+                    midpoint = (fvg['top'] + fvg['bottom']) / 2
+                    confluence = 2
+                    
+                    limit_levels.append({
+                        "price": midpoint,
+                        "type": "FVG_MIDPOINT",
+                        "confluence": confluence,
+                        "description": f"FVG 50% Fill (${fvg['bottom']:.2f}-${fvg['top']:.2f})"
+                    })
+            
+            # OTE levels
+            if ote_zones and ote_zones.get('direction') == "BEARISH":
+                for fib_level in ['ote_0.62', 'ote_0.705', 'ote_0.79']:
+                    price = ote_zones.get(fib_level)
+                    if price and price > current_price:
+                        confluence = 4 if '705' in fib_level else 3
+                        
+                        limit_levels.append({
+                            "price": price,
+                            "type": f"OTE_{fib_level.split('_')[1]}",
+                            "confluence": confluence,
+                            "description": f"Optimal Trade Entry {fib_level.split('_')[1]}"
+                        })
+            
+            # Premium zone levels
+            if zones and zones.get('current_zone') == "PREMIUM":
+                equilibrium = zones.get('equilibrium')
+                if equilibrium and equilibrium > current_price:
+                    limit_levels.append({
+                        "price": equilibrium,
+                        "type": "EQUILIBRIUM",
+                        "confluence": 2,
+                        "description": "50% Equilibrium Level"
+                    })
+            
+            # Breaker blocks
+            for breaker in breakers.get('bearish_breaker', []):
+                if breaker['high'] > current_price:
+                    limit_levels.append({
+                        "price": breaker['high'],
+                        "type": "BREAKER_BLOCK",
+                        "confluence": 3,
+                        "description": "Bearish Breaker Block"
+                    })
+        
+        # Sort by confluence (highest first) and return top 5
+        limit_levels.sort(key=lambda x: x['confluence'], reverse=True)
+        return limit_levels[:5]
+    
+    @staticmethod
+    def generate_smc_signal(df: pd.DataFrame, current_time: datetime = None) -> Tuple:
+        """
+        Enhanced ICT signal generation with:
+        1. Killzone timing
+        2. Liquidity sweeps
+        3. OTE entries
+        4. Breaker blocks
+        5. Multi-level confluence scoring
+        
+        Returns: (signal, strength, confluences, confidence, key_levels, killzone_data, ote_zones, limit_orders)
         """
         if len(df) < 20:
-            return "HOLD", "WEAK", ["Insufficient data for SMC analysis"], 30
+            return "HOLD", "WEAK", ["Insufficient data for ICT analysis"], 30, [], {}, {}, []
+        
+        if current_time is None:
+            current_time = datetime.now(pytz.UTC)
         
         confluences = []
         bullish_score = 0
         bearish_score = 0
+        key_levels = []  # Track all key levels for confirmation
         
         # 1. Market Structure
         structure = SMCStrategy.detect_market_structure(df)
@@ -351,6 +803,13 @@ class SMCStrategy:
             if ob['low'] <= current_price <= ob['high']:
                 confluences.append(f"🟢 Price at Bullish Order Block (Strength: {ob['strength']:.1f})")
                 bullish_score += 2.5
+                key_levels.append({
+                    "type": "ORDER_BLOCK",
+                    "price": ob['low'],
+                    "high": ob['high'],
+                    "low": ob['low'],
+                    "confluence": min(int(ob['strength']) + 3, 6)
+                })
                 break
         
         # Check if price near bearish OB
@@ -358,6 +817,13 @@ class SMCStrategy:
             if ob['low'] <= current_price <= ob['high']:
                 confluences.append(f"🔴 Price at Bearish Order Block (Strength: {ob['strength']:.1f})")
                 bearish_score += 2.5
+                key_levels.append({
+                    "type": "ORDER_BLOCK",
+                    "price": ob['high'],
+                    "high": ob['high'],
+                    "low": ob['low'],
+                    "confluence": min(int(ob['strength']) + 3, 6)
+                })
                 break
         
         # 3. Fair Value Gaps
@@ -368,6 +834,14 @@ class SMCStrategy:
             if current_price >= fvg['bottom'] and current_price <= fvg['top'] * 1.02:
                 confluences.append(f"📈 Bullish FVG nearby (${fvg['bottom']:.2f}-${fvg['top']:.2f})")
                 bullish_score += 1.5
+                midpoint = (fvg['top'] + fvg['bottom']) / 2
+                key_levels.append({
+                    "type": "FVG_MIDPOINT",
+                    "price": midpoint,
+                    "high": fvg['top'],
+                    "low": fvg['bottom'],
+                    "confluence": 3
+                })
                 break
         
         # Bearish FVG above price (potential resistance)
@@ -375,6 +849,14 @@ class SMCStrategy:
             if current_price <= fvg['top'] and current_price >= fvg['bottom'] * 0.98:
                 confluences.append(f"📉 Bearish FVG nearby (${fvg['bottom']:.2f}-${fvg['top']:.2f})")
                 bearish_score += 1.5
+                midpoint = (fvg['top'] + fvg['bottom']) / 2
+                key_levels.append({
+                    "type": "FVG_MIDPOINT",
+                    "price": midpoint,
+                    "high": fvg['top'],
+                    "low": fvg['bottom'],
+                    "confluence": 3
+                })
                 break
         
         # 4. Break of Structure
@@ -416,13 +898,83 @@ class SMCStrategy:
         if liquidity['sell_side_liquidity']:
             confluences.append(f"💧 Sell-side liquidity: ${liquidity['sell_side_liquidity'][0]:,.2f}")
         
+        # 8. Killzone Check (NEW)
+        killzone_data = SMCStrategy.is_in_killzone(current_time)
+        if killzone_data['in_killzone']:
+            confluences.append(f"⏰ {killzone_data['killzone_name']} Killzone - {killzone_data['description']}")
+            # Boost scores in killzone
+            if bullish_score > bearish_score:
+                bullish_score *= killzone_data['probability_multiplier']
+            elif bearish_score > bullish_score:
+                bearish_score *= killzone_data['probability_multiplier']
+        
+        # 9. OTE Zones (NEW)
+        ote_zones = SMCStrategy.calculate_ote_zones(df, structure)
+        if ote_zones and ote_zones.get('in_ote_zone'):
+            confluences.append(f"🎯 Price in OTE Zone ({ote_zones['direction']}) - Optimal entry range")
+            if ote_zones['direction'] == "BULLISH":
+                bullish_score += 2
+                # Add OTE levels to key levels
+                key_levels.append({
+                    "type": "OTE_0.705",
+                    "price": ote_zones['ote_0.705'],
+                    "confluence": 4,
+                    "description": "Optimal Trade Entry (Golden Pocket)"
+                })
+            else:
+                bearish_score += 2
+                key_levels.append({
+                    "type": "OTE_0.705",
+                    "price": ote_zones['ote_0.705'],
+                    "confluence": 4,
+                    "description": "Optimal Trade Entry (Golden Pocket)"
+                })
+        
+        # 10. Liquidity Sweeps (NEW)
+        sweeps = SMCStrategy.detect_liquidity_sweeps(df, liquidity)
+        if sweeps['bullish_sweep']:
+            confluences.append(f"🌊 Bullish Liquidity Sweep @ ${sweeps['swept_level']:,.2f} - Stops taken, reversal likely")
+            bullish_score += 3
+        if sweeps['bearish_sweep']:
+            confluences.append(f"🌊 Bearish Liquidity Sweep @ ${sweeps['swept_level']:,.2f} - Stops taken, reversal likely")
+            bearish_score += 3
+        
+        # 11. Breaker Blocks (NEW)
+        breakers = SMCStrategy.detect_breaker_blocks(df, order_blocks, structure)
+        current_price = df['close'].iloc[-1]
+        
+        for breaker in breakers['bullish_breaker']:
+            if breaker['low'] <= current_price <= breaker['high']:
+                confluences.append(f"⚡ Price at Bullish Breaker Block - Failed resistance becomes support")
+                bullish_score += 2
+                key_levels.append({
+                    "type": "BREAKER_BLOCK",
+                    "price": breaker['low'],
+                    "high": breaker['high'],
+                    "low": breaker['low'],
+                    "confluence": 3
+                })
+        
+        for breaker in breakers['bearish_breaker']:
+            if breaker['low'] <= current_price <= breaker['high']:
+                confluences.append(f"⚡ Price at Bearish Breaker Block - Failed support becomes resistance")
+                bearish_score += 2
+                key_levels.append({
+                    "type": "BREAKER_BLOCK",
+                    "price": breaker['high'],
+                    "high": breaker['high'],
+                    "low": breaker['low'],
+                    "confluence": 3
+                })
+        
         # Determine final signal
         total_score = bullish_score + bearish_score
         
         if total_score == 0:
-            return "HOLD", "WEAK", confluences, 30
+            return "HOLD", "WEAK", confluences, 30, key_levels, killzone_data, ote_zones, []
         
         if bullish_score > bearish_score:
+            signal = "LONG"
             confidence = min((bullish_score / total_score) * 100, 95)
             if bullish_score >= 6:
                 strength = "STRONG"
@@ -430,9 +982,8 @@ class SMCStrategy:
                 strength = "MODERATE"
             else:
                 strength = "WEAK"
-            return "LONG", strength, confluences, round(confidence, 2)
-        
         elif bearish_score > bullish_score:
+            signal = "SHORT"
             confidence = min((bearish_score / total_score) * 100, 95)
             if bearish_score >= 6:
                 strength = "STRONG"
@@ -440,8 +991,16 @@ class SMCStrategy:
                 strength = "MODERATE"
             else:
                 strength = "WEAK"
-            return "SHORT", strength, confluences, round(confidence, 2)
-        
         else:
-            return "HOLD", "WEAK", confluences, 50
+            signal = "HOLD"
+            strength = "WEAK"
+            confidence = 50
+        
+        # Calculate limit orders for best entry points
+        zones = SMCStrategy.calculate_premium_discount_zones(df)
+        limit_orders = SMCStrategy.calculate_limit_orders(
+            signal, current_price, order_blocks, fvgs, ote_zones, zones, breakers
+        )
+        
+        return signal, strength, confluences, round(confidence, 2), key_levels, killzone_data, ote_zones, limit_orders
 

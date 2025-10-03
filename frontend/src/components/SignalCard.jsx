@@ -1,10 +1,17 @@
-import { TrendingUp, TrendingDown, Activity, Target, Shield, Lock, CheckCircle, ArrowRight } from 'lucide-react'
+import { TrendingUp, TrendingDown, Activity, Target, Shield, Lock, CheckCircle, ArrowRight, Clock, Zap } from 'lucide-react'
 import './SignalCard.css'
 
 function SignalCard({ signal }) {
   if (!signal) return null
 
+  const isPending = signal.signal === 'SETUP_PENDING'
+  const isAwaiting = signal.signal === 'AWAITING_CONFIRMATION'
+  const isActive = !isPending && !isAwaiting
+
   const getSignalIcon = () => {
+    if (isPending) return <Clock size={24} />
+    if (isAwaiting) return <Activity size={24} />
+    
     switch (signal.signal) {
       case 'LONG':
         return <TrendingUp size={24} />
@@ -16,6 +23,8 @@ function SignalCard({ signal }) {
   }
 
   const getSignalClass = () => {
+    if (isPending) return 'badge badge-hold'
+    if (isAwaiting) return 'badge badge-hold'
     return `badge badge-${signal.signal.toLowerCase()}`
   }
 
@@ -33,11 +42,18 @@ function SignalCard({ signal }) {
   return (
     <div className="card signal-card">
       <div className="card-header">
-        <h2 className="card-title">Trading Signal</h2>
+        <h2 className="card-title">
+          {isPending ? '⏸️ Setup Pending' : isAwaiting ? '⏳ Awaiting Confirmation' : '🎯 ICT Signal'}
+        </h2>
         <div className="signal-header-right">
-          {signal.strategy_used && (
-            <span className={`strategy-badge strategy-${signal.strategy_used.toLowerCase()}`}>
-              {signal.strategy_used === 'SMC' ? '🎯 SMC' : '📊 Tech'}
+          {signal.killzone_active && (
+            <span className="killzone-badge">
+              ⏰ {signal.killzone_name}
+            </span>
+          )}
+          {signal.leverage_suggestion && isActive && (
+            <span className={`leverage-badge leverage-${signal.leverage_suggestion.risk_level.toLowerCase()}`}>
+              {signal.leverage_suggestion.suggested_leverage}x
             </span>
           )}
           <div className="signal-icon">
@@ -71,14 +87,69 @@ function SignalCard({ signal }) {
       )}
 
       <div className="signal-main">
+        {/* Pending Levels Display */}
+        {(isPending || isAwaiting) && signal.pending_levels && signal.pending_levels.length > 0 && (
+          <div className="pending-levels-section">
+            <h3 className="pending-levels-title">
+              {isPending ? '📍 Nearby Key Levels' : '🎯 Price at Key Level'}
+            </h3>
+            {signal.pending_levels.slice(0, 3).map((level, idx) => (
+              <div key={idx} className="pending-level-item">
+                <span className="level-type">{level.type?.replace(/_/g, ' ')}</span>
+                <span className="level-price">${level.price?.toLocaleString()}</span>
+                {level.confluence && (
+                  <span className="level-confluence">{level.confluence} confluences</span>
+                )}
+              </div>
+            ))}
+            <p className="pending-note">
+              {isPending ? '💡 Waiting for price to reach one of these levels' : '⏳ Waiting for confirmation candle'}
+            </p>
+          </div>
+        )}
+
         <div className="signal-badges">
           <span className={getSignalClass()}>
-            {signal.signal}
+            {isPending ? 'PENDING' : isAwaiting ? 'AWAITING' : signal.signal}
           </span>
           <span className={getStrengthClass()}>
             {signal.strength}
           </span>
         </div>
+
+        {/* Leverage Suggestion Display */}
+        {signal.leverage_suggestion && isActive && (
+          <div className="leverage-section">
+            <div className="leverage-header">
+              <Zap size={16} />
+              <span className="leverage-title">Leverage Suggestion</span>
+            </div>
+            <div className="leverage-details">
+              <div className="leverage-main">
+                <span className="leverage-multiplier">{signal.leverage_suggestion.suggested_leverage}x</span>
+                <span className={`leverage-risk leverage-risk-${signal.leverage_suggestion.risk_level.toLowerCase()}`}>
+                  {signal.leverage_suggestion.risk_level} RISK
+                </span>
+              </div>
+              <div className="leverage-positions">
+                <div className="position-item">
+                  <span className="position-label">1% Account Risk:</span>
+                  <span className="position-value">{signal.leverage_suggestion.position_size_1pct_risk}</span>
+                </div>
+                <div className="position-item">
+                  <span className="position-label">2% Account Risk:</span>
+                  <span className="position-value">{signal.leverage_suggestion.position_size_2pct_risk}</span>
+                </div>
+              </div>
+              <div className="leverage-warning">
+                ⚠️ Liquidation at {signal.leverage_suggestion.liquidation_distance} from entry
+              </div>
+              <div className="leverage-recommendation">
+                {signal.leverage_suggestion.recommendation}
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="confidence-meter">
           <div className="confidence-label">
@@ -167,8 +238,40 @@ function SignalCard({ signal }) {
           </div>
         </div>
 
+        {/* OTE Zones Display */}
+        {signal.ote_data && Object.keys(signal.ote_data).length > 0 && (
+          <div className="ote-zones-section">
+            <h3 className="ote-title">🎯 Optimal Trade Entry (OTE) Zones</h3>
+            <div className="ote-levels">
+              {signal.ote_data.ote_0_62 && (
+                <div className="ote-level">
+                  <span className="ote-label">0.62 Fib</span>
+                  <span className="ote-value">${signal.ote_data.ote_0_62.toLocaleString()}</span>
+                </div>
+              )}
+              {signal.ote_data.ote_0_705 && (
+                <div className="ote-level golden">
+                  <span className="ote-label">0.705 Fib (Golden Pocket)</span>
+                  <span className="ote-value">${signal.ote_data.ote_0_705.toLocaleString()}</span>
+                </div>
+              )}
+              {signal.ote_data.ote_0_79 && (
+                <div className="ote-level">
+                  <span className="ote-label">0.79 Fib</span>
+                  <span className="ote-value">${signal.ote_data.ote_0_79.toLocaleString()}</span>
+                </div>
+              )}
+            </div>
+            {signal.ote_data.in_ote_zone && (
+              <div className="ote-active">
+                ✅ Price in OTE zone - {signal.ote_data.direction} setup
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="confluences">
-          <h3>Confluences</h3>
+          <h3>ICT Confluences</h3>
           <ul>
             {signal.confluences.map((conf, idx) => (
               <li key={idx}>{conf}</li>
